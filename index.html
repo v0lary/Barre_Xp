@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { background: transparent; font-family: 'Segoe UI', sans-serif; }
+        #quest-container {
+            width: 380px; padding: 20px; background: rgba(15, 15, 15, 0.9);
+            border: 3px solid #ffd700; border-radius: 20px; color: white;
+            transition: transform 0.2s;
+        }
+        #level-badge { color: #ffd700; font-size: 1.4em; font-weight: bold; }
+        #bar-container { width: 100%; height: 25px; background: #222; border-radius: 12px; margin: 15px 0; overflow: hidden; }
+        #bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #f39c12, #f1c40f); transition: width 0.4s ease-out; }
+        .level-up-anim { transform: scale(1.1); border-color: #fff !important; }
+    </style>
+</head>
+<body>
+
+    <div id="quest-container">
+        <div id="level-badge">NIVEAU 1</div>
+        <div id="bar-container"><div id="bar-fill"></div></div>
+        <div id="xp-text" style="text-align: right;">0 / 100 XP</div>
+    </div>
+
+    <audio id="lvl-sound" src="https://www.myinstants.com/media/sounds/mario-coin-sound.mp3"></audio>
+
+   <script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let lastLevel = 1;
+
+    // Fonction pour obtenir le nom du Rang selon le niveau
+    function obtenirRang(niveau) {
+        if (niveau >= 50) return "LÉGENDE VIVANTE 🏆";
+        
+        const grades = [
+            { max: 10, nom: "Débutant" },
+            { max: 20, nom: "Apprenti" },
+            { max: 30, nom: "Guerrier" },
+            { max: 40, nom: "Chevalier" },
+            { max: 50, nom: "Maître" }
+        ];
+
+        // On cherche le grade correspondant
+        const grade = grades.find(g => niveau < g.max);
+        
+        // On calcule le chiffre romain (I, II, III...) au sein du grade
+        // Exemple : Niveau 12 -> Apprenti II (car 12 - 10 = 2)
+        const sousNiveau = (niveau % 10 === 0) ? 10 : (niveau % 10);
+        const romains = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+        
+        return `${grade.nom} ${romains[sousNiveau]}`;
+    }
+
+    socket.on('MISE_A_JOUR_STATS', (stats) => {
+        // Effet visuel et sonore si niveau supérieur
+        if (stats.level > lastLevel) {
+            document.getElementById('lvl-sound').play();
+            document.getElementById('quest-container').classList.add('level-up-anim');
+            setTimeout(() => document.getElementById('quest-container').classList.remove('level-up-anim'), 500);
+            lastLevel = stats.level;
+        }
+
+        // Mise à jour du Titre avec le Rang
+        const nomRang = obtenirRang(stats.level);
+        document.getElementById('level-badge').innerText = `NIV ${stats.level} : ${nomRang}`;
+
+        // Mise à jour de la barre
+        const pourcentage = (stats.currentXP / stats.xpToNextLevel) * 100;
+        document.getElementById('bar-fill').style.width = pourcentage + "%";
+        document.getElementById('xp-text').innerText = `${Math.floor(stats.currentXP)} / ${stats.xpToNextLevel} XP`;
+    });
+</script>
+</body>
+</html>
