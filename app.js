@@ -1,64 +1,67 @@
-const { WebcastPushConnection } = require('tiktok-live-connector');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { WebcastPushConnection } = require('tiktok-live-connect');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-let tiktokUsername = "v0lary"; 
+app.use(express.static('public'));
 
-let playerStats = {
-    level: 1,
-    currentXP: 0,
-    xpToNextLevel: 100 
-};
+// On garde en mémoire les stats par utilisateur pour éviter de tout perdre au refresh
+let userStats = {};
 
-// Liste pour limiter le gain XP des follows (1 fois par personne)
-let usersWhoFollowed = new Set(); 
+io.on('connection', (socket) => {
+    // On récupère le pseudo envoyé depuis l'URL (ex: ?user=v0lary)
+    let tiktokUsername = socket.handshake.query.user;
 
-app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
-
-let tiktokLiveConnection = new WebcastPushConnection(tiktokUsername);
-tiktokLiveConnection.connect().then(state => { console.log(`✅ Connecté !`); }).catch(err => console.error(err));
-
-// --- FONCTION DE CALCUL D'XP ---
-function ajouterXP(points) {
-    playerStats.currentXP += points;
-
-    // TANT QUE l'XP est supérieure à l'objectif, on monte de niveau
-    // Cela permet de passer plusieurs niveaux d'un coup avec un énorme cadeau
-    while (playerStats.currentXP >= playerStats.xpToNextLevel) {
-        playerStats.currentXP -= playerStats.xpToNextLevel; // ON GARDE LE SURPLUS ICI
-        playerStats.level++;
-        playerStats.xpToNextLevel = Math.floor(playerStats.xpToNextLevel * 1.5);
-        console.log(`✨ LEVEL UP ! Niveau ${playerStats.level}`);
+    if (!tiktokUsername) {
+        console.log("Connexion sans pseudo ignorée.");
+        return;
     }
 
-    io.emit('MISE_A_JOUR_STATS', playerStats);
-}
+    console.log(`Tentative de connexion au Live de : ${tiktokUsername}`);
 
-// CADEAUX : 1 pièce = 1 XP
-tiktokLiveConnection.on('gift', (data) => {
-    console.log(`🎁 ${data.giftName} : +${data.diamondCount} XP`);
-    ajouterXP(data.diamondCount);
-});
-
-// FOLLOWS : +20 XP (Limité à 1 fois par live)
-tiktokLiveConnection.on('follow', (data) => {
-    let pseudo = data.uniqueId;
-    if (!usersWhoFollowed.has(pseudo)) {
-        usersWhoFollowed.add(pseudo);
-        console.log(`👤 ${pseudo} follow : +20 XP`);
-        ajouterXP(20);
+    // Initialisation des stats pour ce streamer s'il n'existe pas
+    if (!userStats[tiktokUsername]) {
+        userStats[tiktokUsername] = { level: 1, currentXP: 0, xpToNextLevel: 100 };
     }
+
+    let tiktokConnection = new WebcastPushConnection(tiktokUsername);
+
+    tiktokConnection.connect().then(state => {
+        console.log(`Connecté au live de ${tiktokUsername}`);
+    }).catch(err => {
+        console.error("Erreur connexion TikTok", err);
+    });
+
+    // Gestion des cadeaux
+    tiktokConnection.on('gift', (data) => {
+        let points = data.diamondCount * 10;
+        let stats = userStats[tiktokUsername];
+        
+        stats.currentXP += points;
+
+        while (stats.currentXP >= stats.xpToNextLevel) {
+            stats.currentXP -= stats.xpToNextLevel;
+            stats.level++;
+            stats.xpToNextLevel = Math.floor(stats.xpToNextLevel * 1.2);
+        }
+
+        // On envoie la mise à jour UNIQUEMENT à celui qui regarde ce pseudo
+        socket.emit('MISE_A_JOUR_STATS', stats);
+    });
+
+    // Envoi des stats actuelles dès la connexion
+    socket.emit('MISE_A_JOUR_STATS', userStats[tiktokUsername]);
+
+    socket.on('disconnect', () => {
+        tiktokConnection.disconnect();
+    });
 });
 
-// ABONNEMENTS PAYANTS : +50 XP
-tiktokLiveConnection.on('subscribe', (data) => {
-    console.log(`⭐ ${data.uniqueId} s'est abonné : +50 XP`);
-    ajouterXP(50);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Serveur prêt sur le port ${PORT}`);
 });
-
-server.listen(3000);
