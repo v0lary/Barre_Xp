@@ -3,74 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { background: transparent; font-family: 'Segoe UI', sans-serif; }
-        #quest-container {
-            width: 380px; padding: 20px; background: rgba(15, 15, 15, 0.9);
-            border: 3px solid #ffd700; border-radius: 20px; color: white;
-            transition: transform 0.2s;
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body { 
+            background: transparent; 
+            font-family: 'Orbitron', sans-serif; 
+            margin: 0;
+            padding: 10px;
+            overflow: hidden;
         }
-        #level-badge { color: #ffd700; font-size: 1.4em; font-weight: bold; }
-        #bar-container { width: 100%; height: 25px; background: #222; border-radius: 12px; margin: 15px 0; overflow: hidden; }
-        #bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #f39c12, #f1c40f); transition: width 0.4s ease-out; }
-        .level-up-anim { transform: scale(1.1); border-color: #fff !important; }
+
+        #quest-container {
+            width: 340px; /* Plus compact */
+            padding: 12px 18px; 
+            background: rgba(10, 10, 10, 0.95);
+            border: 2px solid #ffd700;
+            border-radius: 12px;
+            color: white;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+            position: relative;
+        }
+
+        #level-badge {
+            color: #ffd700;
+            font-size: 1.0em; /* Un peu plus petit pour aller avec la barre fine */
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+            margin-bottom: 8px;
+        }
+
+        #bar-container {
+            width: 100%;
+            height: 12px; /* TAILLE AFFINÉE */
+            background: #1a1a1a;
+            border-radius: 50px;
+            padding: 2px;
+            border: 1px solid #333;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+        }
+
+        #bar-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #f39c12, #ffec00, #f39c12);
+            background-size: 200% 100%;
+            border-radius: 50px;
+            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+            box-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
+            animation: gradientMove 3s linear infinite;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+
+        #xp-text {
+            margin-top: 5px;
+            text-align: right;
+            font-size: 0.8em;
+            color: #bbb;
+            font-family: monospace;
+        }
+
+        .level-up-flash {
+            animation: flash 0.5s ease-out;
+        }
+
+        @keyframes flash {
+            0% { filter: brightness(1); transform: scale(1); }
+            50% { filter: brightness(2); transform: scale(1.03); }
+            100% { filter: brightness(1); transform: scale(1); }
+        }
     </style>
 </head>
 <body>
 
     <div id="quest-container">
-        <div id="level-badge">NIVEAU 1</div>
-        <div id="bar-container"><div id="bar-fill"></div></div>
-        <div id="xp-text" style="text-align: right;">0 / 100 XP</div>
+        <div id="level-badge">NIVEAU 1 : DÉBUTANT I</div>
+        <div id="bar-container">
+            <div id="bar-fill"></div>
+        </div>
+        <div id="xp-text">0 / 100 XP</div>
     </div>
 
     <audio id="lvl-sound" src="https://www.myinstants.com/media/sounds/mario-coin-sound.mp3"></audio>
 
-   <script src="/socket.io/socket.io.js"></script>
-<script>
-    const socket = io();
-    let lastLevel = 1;
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let lastLevel = 1;
 
-    // Fonction pour obtenir le nom du Rang selon le niveau
-    function obtenirRang(niveau) {
-        if (niveau >= 50) return "LÉGENDE VIVANTE 🏆";
-        
-        const grades = [
-            { max: 10, nom: "Débutant" },
-            { max: 20, nom: "Apprenti" },
-            { max: 30, nom: "Guerrier" },
-            { max: 40, nom: "Chevalier" },
-            { max: 50, nom: "Maître" }
-        ];
-
-        // On cherche le grade correspondant
-        const grade = grades.find(g => niveau < g.max);
-        
-        // On calcule le chiffre romain (I, II, III...) au sein du grade
-        // Exemple : Niveau 12 -> Apprenti II (car 12 - 10 = 2)
-        const sousNiveau = (niveau % 10 === 0) ? 10 : (niveau % 10);
-        const romains = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
-        
-        return `${grade.nom} ${romains[sousNiveau]}`;
-    }
-
-    socket.on('MISE_A_JOUR_STATS', (stats) => {
-        // Effet visuel et sonore si niveau supérieur
-        if (stats.level > lastLevel) {
-            document.getElementById('lvl-sound').play();
-            document.getElementById('quest-container').classList.add('level-up-anim');
-            setTimeout(() => document.getElementById('quest-container').classList.remove('level-up-anim'), 500);
-            lastLevel = stats.level;
+        function obtenirRang(niveau) {
+            if (niveau >= 50) return "LÉGENDE VIVANTE 🏆";
+            const grades = [
+                { max: 10, nom: "Débutant" },
+                { max: 20, nom: "Apprenti" },
+                { max: 30, nom: "Guerrier" },
+                { max: 40, nom: "Chevalier" },
+                { max: 50, nom: "Maître" }
+            ];
+            const grade = grades.find(g => niveau < g.max);
+            const sousNiveau = (niveau % 10 === 0) ? 10 : (niveau % 10);
+            const romains = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+            return `${grade.nom} ${romains[sousNiveau]}`;
         }
 
-        // Mise à jour du Titre avec le Rang
-        const nomRang = obtenirRang(stats.level);
-        document.getElementById('level-badge').innerText = `NIV ${stats.level} : ${nomRang}`;
+        socket.on('MISE_A_JOUR_STATS', (stats) => {
+            const container = document.getElementById('quest-container');
+            const barFill = document.getElementById('bar-fill');
+            const xpText = document.getElementById('xp-text');
+            const levelBadge = document.getElementById('level-badge');
 
-        // Mise à jour de la barre
-        const pourcentage = (stats.currentXP / stats.xpToNextLevel) * 100;
-        document.getElementById('bar-fill').style.width = pourcentage + "%";
-        document.getElementById('xp-text').innerText = `${Math.floor(stats.currentXP)} / ${stats.xpToNextLevel} XP`;
-    });
-</script>
+            if (stats.level > lastLevel) {
+                document.getElementById('lvl-sound').play();
+                container.classList.add('level-up-flash');
+                setTimeout(() => container.classList.remove('level-up-flash'), 500);
+                lastLevel = stats.level;
+            }
+
+            levelBadge.innerText = `NIV ${stats.level} : ${obtenirRang(stats.level)}`;
+            const pourcentage = (stats.currentXP / stats.xpToNextLevel) * 100;
+            barFill.style.width = pourcentage + "%";
+            xpText.innerText = `${Math.floor(stats.currentXP)} / ${stats.xpToNextLevel} XP`;
+        });
+    </script>
 </body>
 </html>
