@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-let tiktokUsername = "coeurdchu"; 
+let tiktokUsername = "v0lary"; 
 
 let playerStats = {
     level: 1,
