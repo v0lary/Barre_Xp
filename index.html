@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overlay Live Quest - Volary</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
@@ -11,10 +13,14 @@
             margin: 0;
             padding: 10px;
             overflow: hidden;
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
         }
 
+        /* Conteneur principal plus compact et élégant */
         #quest-container {
-            width: 340px; /* Plus compact */
+            width: 340px; 
             padding: 12px 18px; 
             background: rgba(10, 10, 10, 0.95);
             border: 2px solid #ffd700;
@@ -22,11 +28,13 @@
             color: white;
             box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
             position: relative;
+            transition: all 0.3s ease;
         }
 
+        /* Texte du niveau et du grade */
         #level-badge {
             color: #ffd700;
-            font-size: 1.0em; /* Un peu plus petit pour aller avec la barre fine */
+            font-size: 1.0em;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1.5px;
@@ -34,9 +42,10 @@
             margin-bottom: 8px;
         }
 
+        /* Conteneur de la barre (Fine) */
         #bar-container {
             width: 100%;
-            height: 12px; /* TAILLE AFFINÉE */
+            height: 12px; 
             background: #1a1a1a;
             border-radius: 50px;
             padding: 2px;
@@ -44,8 +53,10 @@
             box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
             display: flex;
             align-items: center;
+            overflow: hidden;
         }
 
+        /* Remplissage de la barre avec dégradé animé */
         #bar-fill {
             width: 0%;
             height: 100%;
@@ -62,6 +73,7 @@
             100% { background-position: 200% 50%; }
         }
 
+        /* Texte de l'XP en bas à droite */
         #xp-text {
             margin-top: 5px;
             text-align: right;
@@ -70,6 +82,7 @@
             font-family: monospace;
         }
 
+        /* Animation de flash lors du passage de niveau */
         .level-up-flash {
             animation: flash 0.5s ease-out;
         }
@@ -79,25 +92,51 @@
             50% { filter: brightness(2); transform: scale(1.03); }
             100% { filter: brightness(1); transform: scale(1); }
         }
+
+        /* Message d'erreur si pas de pseudo */
+        #error-msg {
+            color: #ff4444;
+            font-size: 0.8em;
+            display: none;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
 
     <div id="quest-container">
-        <div id="level-badge">NIVEAU 1 : DÉBUTANT I</div>
+        <div id="level-badge">Chargement...</div>
         <div id="bar-container">
             <div id="bar-fill"></div>
         </div>
-        <div id="xp-text">0 / 100 XP</div>
+        <div id="xp-text">0 / 0 XP</div>
     </div>
+
+    <div id="error-msg">Erreur : Ajoutez ?user=pseudo à l'URL</div>
 
     <audio id="lvl-sound" src="https://www.myinstants.com/media/sounds/mario-coin-sound.mp3"></audio>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
+        // 1. Récupération du pseudo dans l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const username = urlParams.get('user');
+
+        if (!username) {
+            document.getElementById('quest-container').style.display = 'none';
+            document.getElementById('error-msg').style.display = 'block';
+        }
+
+        // 2. Connexion Socket.io avec passage du pseudo
+        const socket = io({
+            query: { user: username }
+        });
+
         let lastLevel = 1;
 
+        // Fonction pour générer les noms de rangs
         function obtenirRang(niveau) {
             if (niveau >= 50) return "LÉGENDE VIVANTE 🏆";
             const grades = [
@@ -113,23 +152,33 @@
             return `${grade.nom} ${romains[sousNiveau]}`;
         }
 
+        // 3. Réception des données du serveur
         socket.on('MISE_A_JOUR_STATS', (stats) => {
             const container = document.getElementById('quest-container');
             const barFill = document.getElementById('bar-fill');
             const xpText = document.getElementById('xp-text');
             const levelBadge = document.getElementById('level-badge');
 
+            // Effet sonore et flash si montée de niveau
             if (stats.level > lastLevel) {
-                document.getElementById('lvl-sound').play();
+                const audio = document.getElementById('lvl-sound');
+                audio.volume = 0.5;
+                audio.play().catch(e => console.log("Audio bloqué par le navigateur"));
+                
                 container.classList.add('level-up-flash');
                 setTimeout(() => container.classList.remove('level-up-flash'), 500);
                 lastLevel = stats.level;
             }
 
+            // Mise à jour de l'affichage
             levelBadge.innerText = `NIV ${stats.level} : ${obtenirRang(stats.level)}`;
             const pourcentage = (stats.currentXP / stats.xpToNextLevel) * 100;
             barFill.style.width = pourcentage + "%";
             xpText.innerText = `${Math.floor(stats.currentXP)} / ${stats.xpToNextLevel} XP`;
+        });
+
+        socket.on('connect_error', () => {
+            document.getElementById('level-badge').innerText = "Erreur Connexion";
         });
     </script>
 </body>
